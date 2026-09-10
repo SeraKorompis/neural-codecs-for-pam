@@ -15,7 +15,7 @@ This repository contains the pipeline for evaluating neural audio codecs (EnCode
 alongside conventional codecs (MP3 and Opus) for passive acoustic monitoring (PAM) data.
 The pipeline assesses:
 
-- **Reconstruction quality** (SI-SNR and STFT distance) relative to published baselines
+- **Reconstruction quality** (SI-SNR and STFT distance) relative to published performances
 - **Downstream species detection performance** using pre-trained BirdNET and transfer-learned classifiers
 - **Computational efficiency** (real-time factors on GPU and CPU)
 
