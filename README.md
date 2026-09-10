@@ -65,6 +65,18 @@ cd neural-codecs-for-pam
 
 Two conda environments are used:
 
+### 2. Create conda environments
+
+The recommended approach uses the provided environment files which 
+capture the exact package versions used in this study:
+
+```bash
+conda env create -f environment-codec.yml
+conda env create -f environment-birdnet.yml
+```
+
+Alternatively, create the environments manually:
+
 ```bash
 # For codec compression and reconstruction evaluation
 conda create -n conda-codec-env python=3.10
