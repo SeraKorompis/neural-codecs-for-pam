@@ -1,0 +1,9 @@
+# config.yaml.example
+# Copy this file to config.yaml and fill in your paths.
+# config.yaml is in .gitignore and should never be committed.
+
+paths:
+  data_dir:    /path/to/data                  # raw audio and annotations
+  results_dir: /path/to/results               # metrics CSVs, embeddings, downstream results
+  recon_dir:   /path/to/reconstructed_audio   # reconstructed WAV files
+  figures_dir: /path/to/figures               # output figures

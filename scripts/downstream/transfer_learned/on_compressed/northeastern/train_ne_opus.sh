@@ -1,0 +1,23 @@
+#!/bin/bash
+#PBS -N train_ne_opus
+#PBS -l walltime=08:00:00
+#PBS -l select=1:ncpus=8:mem=32gb
+#PBS -o logs/train_ne_opus.out
+#PBS -e logs/train_ne_opus.err
+
+echo "Job ID: $PBS_JOBID"
+echo "Started: $(date)"
+cd /rds/general/user/stk25/home/ai_audio_compression/project
+
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate conda-birdnet-env
+export PYTHONUNBUFFERED=1
+mkdir -p logs
+
+for br in 8 14; do
+    echo "--- Opus $br kbps ---"
+    python scripts/downstream/transfer_learned/train_binary_classifiers.py \
+        --dataset northeastern --train_source opus --train_bitrate $br
+done
+
+echo "Finished: $(date)"
