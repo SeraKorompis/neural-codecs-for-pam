@@ -115,9 +115,9 @@ The following datasets are required and must be obtained separately:
 
 | Dataset | Source |
 |---------|--------|
-| AnuraSet | [Zenodo](https://zenodo.org/record/8154908) |
-| Northeastern US Soundscapes | [Zenodo](https://zenodo.org/record/7079124) |
-| Black-and-White Ruffed Lemur | [Zenodo](https://zenodo.org/record/7540359) |
+| AnuraSet | [Zenodo](https://zenodo.org/records/8342596) |
+| Northeastern US Soundscapes | [Zenodo](https://zenodo.org/records/7018484) |
+| Black-and-White Ruffed Lemur | [Zenodo](https://zenodo.org/records/6331594) |
 
 Once downloaded, datasets should be organised as follows:
 
