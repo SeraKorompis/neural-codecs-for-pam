@@ -1,7 +1,9 @@
 # Neural Audio Codecs for Passive Acoustic Monitoring
 
 Code for the MSc AI Applications and Innovation dissertation:
+
 **"AI Compression of Natural Soundscapes for Large-Scale Biodiversity Monitoring"**
+
 Seraphina Korompis | Imperial College London | September 2026
 Supervisor: Sarab Sethi, Co-supervisor: Sam Orchard
 
