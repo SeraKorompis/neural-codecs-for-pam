@@ -298,20 +298,12 @@ def stft_distance(reference: np.ndarray,
                   fft_sizes: list[int] = None) -> float:
     """
     Multi-scale log STFT distance in dB.
-    Lower is better.  Computed as the mean absolute difference between 
+    Lower is better. Computed as the mean absolute difference between
     log-magnitude spectrograms at multiple FFT scales.
-    FFT sizes default to [2048, 1024, 512] scaled to SR.
+    FFT sizes match the DAC paper (kumar2023): [2048, 512].
     """
-    import librosa
-
     if fft_sizes is None:
-        # Scale FFT sizes to sample rate
-        # Base sizes assume 24kHz, scale proportionally
-        base_sr   = 24000
-        base_sizes = [2048, 1024, 512]
-        fft_sizes  = [max(256, int(s * sr / base_sr)) for s in base_sizes]
-        # Round to nearest power of 2
-        fft_sizes  = [2 ** round(np.log2(s)) for s in fft_sizes]
+        fft_sizes = [2048, 512]
 
     min_len   = min(len(reference), len(estimate))
     reference = reference[:min_len].astype(np.float32)
@@ -319,14 +311,11 @@ def stft_distance(reference: np.ndarray,
 
     distances = []
     for n_fft in fft_sizes:
-        hop = n_fft // 4
-        S_ref  = np.abs(librosa.stft(reference, n_fft=n_fft, hop_length=hop))
-        S_est  = np.abs(librosa.stft(estimate,  n_fft=n_fft, hop_length=hop))
-
-        # Log magnitude
-        S_ref  = librosa.amplitude_to_db(S_ref, ref=1.0)
-        S_est  = librosa.amplitude_to_db(S_est, ref=1.0)
-
+        hop   = n_fft // 4
+        S_ref = np.abs(librosa.stft(reference, n_fft=n_fft, hop_length=hop))
+        S_est = np.abs(librosa.stft(estimate,  n_fft=n_fft, hop_length=hop))
+        S_ref = librosa.amplitude_to_db(S_ref, ref=1.0)
+        S_est = librosa.amplitude_to_db(S_est, ref=1.0)
         distances.append(np.mean(np.abs(S_ref - S_est)))
 
     return float(np.mean(distances))
