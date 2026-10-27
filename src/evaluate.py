@@ -334,11 +334,6 @@ def evaluate_file(audio_path,
 
     codec_save_path = None
 
-    # # Codec embeddings saved relative to recon_dir parent
-    # embeddings_dir = recon_dir.parent / 'embeddings' / dataset_name / codec / str(bitrate)
-    # embeddings_dir.mkdir(parents=True, exist_ok=True)
-    # embeddings_csv_path = embeddings_dir / 'embeddings.csv'
-
     # Codec embeddings saved to results/reconstruction_quality/codec_embeddings/
     embeddings_dir = Path(PATHS['results_dir']) / 'reconstruction_quality' / \
                      'codec_embeddings' / dataset_name / codec / str(bitrate)
@@ -380,33 +375,6 @@ def evaluate_file(audio_path,
     compression_time_sec = round(time.time() - t_start, 2)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-
-    # audio_ref = resample(audio, native_sr, target_sr)
-    # min_len       = min(len(audio_ref), len(reconstructed))
-    # audio_ref     = audio_ref[:min_len]
-    # reconstructed = reconstructed[:min_len]
-    # audio_duration_sec = round(min_len / target_sr, 4)
-
-    # si_snr_whole = si_snr(audio_ref, reconstructed)
-    # stft_whole   = stft_distance(audio_ref, reconstructed, target_sr)
-    # call_metrics, per_call_df = compute_call_region_metrics(
-    #     audio_ref, reconstructed, annotations, target_sr
-    # )
-
-    # # Reconstructed audio: recon_dir/dataset/codec/bitrate/stem_reconstructed.wav
-    # recon_subdir = config.get('recon_subdir', dataset_name)
-    # recon_path   = (recon_dir / recon_subdir / codec /
-    #                 str(bitrate) / (audio_path.stem + '_reconstructed.wav'))
-    # recon_path.parent.mkdir(parents=True, exist_ok=True)
-    # try:
-    #     save_audio(reconstructed, target_sr, str(recon_path))
-    # except Exception as e:
-    #     print(f"  Error: could not save reconstructed audio for "
-    #           f"{audio_path.name} ({codec} @ {bitrate}): "
-    #           f"{type(e).__name__}: {e}")
-    #     return None, None
-
-    # del audio, audio_ref, reconstructed
 
     # Resample reconstructed to native SR for metrics
     recon_native = resample(reconstructed, target_sr, native_sr)
