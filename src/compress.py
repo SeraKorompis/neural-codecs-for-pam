@@ -435,45 +435,6 @@ def compress_mp3(audio: np.ndarray, sr: int, bitrate_kbps: int = 32) -> tuple[np
         
     return recon, float(bitrate_kbps), encode_time, decode_time
 
-
-# def compress_opus(audio: np.ndarray, sr: int, bitrate_kbps: int = 6) -> tuple[np.ndarray, float, float, float]:
-#     import io
-#     from pydub import AudioSegment
-    
-#     audio_int16 = (audio * 32767).astype(np.int16)
-#     audio_segment = AudioSegment(
-#         audio_int16.tobytes(), 
-#         frame_rate=sr,
-#         sample_width=2, 
-#         channels=1
-#     )
-    
-#     bitrate_str = f"{bitrate_kbps}k"
-    
-#     t0 = time.perf_counter()
-#     opus_buffer = io.BytesIO()
-#     # Opus must be wrapped in Ogg container — 'opus' is not a valid container format
-#     audio_segment.export(
-#         opus_buffer,
-#         format="ogg",
-#         parameters=["-c:a", "libopus", "-b:a", bitrate_str]
-#     )
-#     encode_time = time.perf_counter() - t0
-    
-#     opus_buffer.seek(0)
-    
-#     t0 = time.perf_counter()
-#     decoded_segment = AudioSegment.from_file(opus_buffer, format="ogg")
-#     decode_time = time.perf_counter() - t0
-    
-#     recon = np.frombuffer(decoded_segment.raw_data, dtype=np.int16).astype(np.float32) / 32767.0
-#     if len(recon) > len(audio):
-#         recon = recon[:len(audio)]
-#     elif len(recon) < len(audio):
-#         recon = np.pad(recon, (0, len(audio) - len(recon)))
-        
-#     return recon, float(bitrate_kbps), encode_time, decode_time
-
 def compress_opus(audio: np.ndarray, sr: int, bitrate_kbps: int = 6) -> tuple[np.ndarray, float, float, float]:
     import subprocess
     import tempfile
