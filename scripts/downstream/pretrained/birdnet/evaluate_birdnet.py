@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-scripts/downstream/pretrained/birdnet/evaluate_birdnet_ovr.py
+scripts/downstream/pretrained/birdnet/evaluate_birdnet.py
 Evaluates pre-trained BirdNET on Northeastern US Soundscapes using the
-same binary evaluation framework as the transfer-learned OVR classifiers,
+same binary evaluation framework as the transfer-learned classifiers,
 enabling direct comparison.
-Negative sampling: all non-positive test windows (OneVsRest), consistent
-with the northeastern_ovr transfer-learned evaluation.
+Negative sampling: all non-positive test windows, consistent
+with the northeastern transfer-learned evaluation.
 Saves to:
     results/downstream/pretrained/birdnet/
-        macro_metrics_ovr.csv
-        per_species_ovr.csv
+        macro_metrics.csv
+        per_species.csv
 Usage:
-    python scripts/downstream/pretrained/birdnet/evaluate_birdnet_ovr.py
-    python scripts/downstream/pretrained/birdnet/evaluate_birdnet_ovr.py \
+    python scripts/downstream/pretrained/birdnet/evaluate_birdnet.py
+    python scripts/downstream/pretrained/birdnet/evaluate_birdnet.py \
         --detections_csv results/downstream/pretrained/birdnet/raw/detections_reconstructed_lowthresh.csv \
         --condition encodec1.5
 """
@@ -193,14 +193,14 @@ def main():
     # Save
     out_dir = RESULTS_BASE
     out_dir.mkdir(parents=True, exist_ok=True)
-    macro_path = out_dir / 'macro_metrics_ovr.csv'
+    macro_path = out_dir / 'macro_metrics.csv'
     df_macro   = pd.DataFrame([macro_row])
     if macro_path.exists():
         df_macro.to_csv(macro_path, mode='a', header=False, index=False)
     else:
         df_macro.to_csv(macro_path, index=False)
     print(f"  Appended to {macro_path}")
-    per_sp_path = out_dir / 'per_species_ovr.csv'
+    per_sp_path = out_dir / 'per_species.csv'
     per_sp_df   = pd.DataFrame(per_species_rows)
     if per_sp_path.exists():
         per_sp_df.to_csv(per_sp_path, mode='a', header=False, index=False)
