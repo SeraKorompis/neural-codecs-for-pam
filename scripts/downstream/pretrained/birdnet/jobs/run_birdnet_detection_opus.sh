@@ -7,7 +7,12 @@
 
 echo "Job ID: $PBS_JOBID"
 echo "Started: $(date)"
-cd /rds/general/user/stk25/home/ai_audio_compression/project
+
+# cd /rds/general/user/stk25/home/ai_audio_compression/project
+
+# Set PROJECT_ROOT to the root of the repository
+PROJECT_ROOT="$HOME/ai_compression/project"
+cd "$PROJECT_ROOT"
 
 eval "$(~/miniforge3/bin/conda shell.bash hook)"
 conda activate conda-birdnet-env

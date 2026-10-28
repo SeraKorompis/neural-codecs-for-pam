@@ -7,15 +7,23 @@
 
 echo "Job ID: $PBS_JOBID"
 echo "Started: $(date)"
-cd /rds/general/user/stk25/home/ai_audio_compression/project
+
+# cd /rds/general/user/stk25/home/ai_audio_compression/project
+
+# Set PROJECT_ROOT to the root of the repository
+PROJECT_ROOT="$HOME/ai_compression/project"
+cd "$PROJECT_ROOT"
 
 eval "$(~/miniforge3/bin/conda shell.bash hook)"
 conda activate conda-birdnet-env
 export PYTHONUNBUFFERED=1
 mkdir -p logs
 
+# Read paths from config.yaml via src.config
+RESULTS_DIR=$(python3 -c "import sys; sys.path.insert(0, '.'); from src.config import PATHS; print(PATHS['results_dir'])")
+
 EVAL="python scripts/downstream/pretrained/birdnet/evaluate_birdnet.py"
-RECON="/rds/general/project/bugg/live/seraphina_compression/results/downstream/pretrained/birdnet/raw/detections_reconstructed_lowthresh.csv"
+RECON="${RESULTS_DIR}/downstream/pretrained/birdnet/raw/detections_reconstructed_lowthresh.csv"
 
 # Original
 $EVAL --condition original --codec original --kbps 0
