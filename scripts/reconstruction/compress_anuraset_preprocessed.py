@@ -2,9 +2,11 @@
 """
 scripts/reconstruction/compress_anuraset_preprocessed.py
 
-Compresses AnuraSet preprocessed test clips using EnCodec and DAC.
+Compresses AnuraSet preprocessed test clips using EnCodec and DAC, 
+used for the downstream evaluation.
+The AnuraSet raw clips were used in reconstrunction fidelity evaluation.
 
-This is a lean compression-only script — it does not compute reconstruction
+This is a lean compression-only script, it does not compute reconstruction
 metrics (SI-SNR, STFT) or call-region metrics, as these were already computed
 on the raw AnuraSet recordings. The sole output is reconstructed WAV files
 for each codec/bitrate combination, used to extract BirdNET embeddings for
