@@ -174,7 +174,26 @@ source_dir/
 
 ```bash
 python scripts/reconstruction/run_benchmark.py \
-    --dataset anuraset --codec encodec --bitrate 24.0
+    --dataset anuraset --codec encodec --bitrates 24.0 --device cuda --mode full
+```
+
+Run once per dataset, codec and bitrate. Datasets: `anuraset`, `northeastern_birds`,
+`lemur_s4a`, `lemur_swift1`, `lemur_swift2`. Codecs and bitrates: `encodec` (1.5, 3.0,
+6.0, 12.0, 24.0), `dac` (2, 3, 6, 9), `mp3` (8, 16, 24), `opus` (8, 14, 24). Use
+`--device cpu` for MP3 and Opus, and `--mode test` for a 3-file subset (point
+`config.yaml` at an empty output folder first).
+
+On a PBS cluster, `bash scripts/reconstruction/jobs/submit_benchmarks.sh` submits all 75
+combinations (`DRY_RUN=1` prints the commands). It assumes `$HOME/miniforge3` and an L40S
+GPU, so edit it for other clusters.
+
+Then merge, aggregate and plot:
+
+```bash
+python scripts/reconstruction/merge_metrics.py --mode full
+python scripts/reconstruction/compute_recon_metrics_agg.py
+python scripts/reconstruction/compute_recon_metrics_rtf_agg.py
+python scripts/reconstruction/figures/plot_metrics_vs_bitrate.py
 ```
 
 ### 2. Extract BirdNET embeddings
