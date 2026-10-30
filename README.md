@@ -65,30 +65,56 @@ cd neural-codecs-for-pam
 
 ### 2. Create conda environments
 
-Two conda environments are used:
+Two environments are used. The codec environment runs compression and
+reconstruction evaluation. The BirdNET environment runs embedding extraction
+and classifier training.
 
-### 2. Create conda environments
+#### Codec environment (Python 3.13)
 
-The recommended approach uses the provided environment files which 
-capture the exact package versions used in this study:
+First create the environment and install ffmpeg and libopus with conda.
 
 ```bash
-conda env create -f environment-codec.yml
-conda env create -f environment-birdnet.yml
+conda create -y -n conda-codec-env python=3.13
+conda activate conda-codec-env
+conda deactivate && conda activate conda-codec-env
+conda install -y -c conda-forge "ffmpeg=8.0.0=gpl*" libopus=1.6.1
 ```
 
-Alternatively, create the environments manually:
+Then install the Python packages in one of two ways.
+
+**Option A: from the requirements file** (exact versions used in this study)
 
 ```bash
-# For codec compression and reconstruction evaluation
-conda create -n conda-codec-env python=3.10
-conda activate conda-codec-env
-pip install encodec descript-audio-codec pydub soundfile librosa torch torchaudio
+pip install -r requirements-codec.txt
+```
 
-# For BirdNET embedding extraction and classifier training
-conda create -n conda-birdnet-env python=3.10
+**Option B: install the packages yourself**
+
+```bash
+pip install torch==2.12.0 torchaudio==2.11.0 encodec==0.1.1 \
+    descript-audio-codec==1.0.0 librosa==0.11.0 pydub==0.25.1 soundfile==0.14.0 \
+    numpy scipy pandas scikit-learn joblib matplotlib adjusttext tqdm pyyaml
+```
+
+#### BirdNET environment (Python 3.11)
+
+```bash
+conda create -y -n conda-birdnet-env python=3.11
 conda activate conda-birdnet-env
-pip install birdnetlib soundfile librosa scikit-learn pandas numpy
+conda deactivate && conda activate conda-birdnet-env
+```
+
+**Option A: from the requirements file**
+
+```bash
+pip install -r requirements-birdnet.txt
+```
+
+**Option B: install the packages yourself**
+
+```bash
+pip install birdnet==0.2.16 tensorflow==2.15.1 numpy==1.26.4 \
+    scikit-learn pandas scipy joblib pyyaml
 ```
 
 ### 3. Configure paths
