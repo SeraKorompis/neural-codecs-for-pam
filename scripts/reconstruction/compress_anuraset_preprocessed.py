@@ -2,99 +2,104 @@
 """
 scripts/reconstruction/compress_anuraset_preprocessed.py
 
-Compresses AnuraSet preprocessed test clips using EnCodec and DAC, 
-used for the downstream evaluation.
-The AnuraSet raw clips were used in reconstrunction fidelity evaluation.
+Compresses the AnuraSet pre-processed 3-second clips with a chosen codec,
+for the downstream classifier evaluation (BirdNET embeddings are extracted
+from the output). The raw one-minute AnuraSet recordings are handled by
+run_benchmark.py instead.
 
-This is a lean compression-only script, it does not compute reconstruction
-metrics (SI-SNR, STFT) or call-region metrics, as these were already computed
-on the raw AnuraSet recordings. The sole output is reconstructed WAV files
-for each codec/bitrate combination, used to extract BirdNET embeddings for
-downstream classifier evaluation.
+This is compression only: no reconstruction metrics are computed. Compression
+is delegated to src/compress.run_codec(), the same function used by
+src/evaluate.py, so codec behaviour is identical.
 
-Compression logic delegates entirely to src/compress.run_codec(), the same
-function used by the full evaluation pipeline (src/evaluate.py), ensuring
-identical codec behaviour.
+Output (reconstructed audio is saved at the codec sample rate):
+    {recon_dir}/anuraset/preprocessed/{codec}/{bitrate}/{stem}_reconstructed.wav
 
-Output structure mirrors the full evaluation pipeline:
-    $RECON_ROOT/anuraset_preprocessed/{codec}/{bitrate}/{stem}_reconstructed.wav
+Resumable: clips that already exist in the output folder are skipped.
 
 Usage:
-    python scripts/reconstruction/compress_anuraset_preprocessed.py --codec encodec --device cuda
-    python scripts/reconstruction/compress_anuraset_preprocessed.py --codec dac --device cuda
+    python scripts/reconstruction/compress_anuraset_preprocessed.py \
+        --codec encodec --split test --device cuda
+    python scripts/reconstruction/compress_anuraset_preprocessed.py \
+        --codec dac --split train --bitrates 6,9 --max_files 20   # quick test
 """
 import argparse
 import gc
-import os
 import sys
 import traceback
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
-import numpy as np
 import pandas as pd
+import soundfile as sf
 import torch
 from tqdm.auto import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.append(str(PROJECT_ROOT))
-
-from src.config import PATHS
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.compress import run_codec
+from src.config import PATHS
 from src.utils import load_audio
-
-# ---------------------------------------------------------------------------
-# PATHS
-# ---------------------------------------------------------------------------
-# EPHEMERAL  = Path(os.environ.get('EPHEMERAL', str(PROJECT_ROOT)))
-# AUDIO_DIR  = EPHEMERAL / 'anuraset_classifier' / 'data' / 'anuraset_preprocessed' / 'audio'
-# META_PATH  = EPHEMERAL / 'anuraset_classifier' / 'data' / 'anuraset_preprocessed' / 'metadata.csv'
-# RECON_ROOT = Path('/rds/general/project/bugg/live/seraphina_compression/reconstructed_audio')
-# LOGS_DIR   = PROJECT_ROOT / 'logs'
-# LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 AUDIO_DIR  = Path(PATHS['source_dir']) / 'anuraset' / 'preprocessed' / 'audio'
 META_PATH  = Path(PATHS['source_dir']) / 'anuraset' / 'preprocessed' / 'metadata.csv'
 RECON_ROOT = Path(PATHS['recon_dir'])
 LOGS_DIR   = PROJECT_ROOT / 'logs'
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-# ---------------------------------------------------------------------------
-# CODEC CONFIG — matches evaluate.py DATASETS['anuraset']['codec_sr'] and 'bitrates'
-# ---------------------------------------------------------------------------
+# Codec sample rates and bitrates used to produce the reported downstream
+# results. Note: Opus clips here are processed and saved at 44100 Hz, whereas
+# run_benchmark.py (raw recordings) uses 48000 Hz for Opus.
 CODEC_CONFIG = {
     'encodec': {'target_sr': 24000, 'bitrates': [1.5, 3.0, 6.0, 12.0, 24.0]},
     'dac':     {'target_sr': 44100, 'bitrates': [2, 3, 6, 9]},
-    'mp3':     {'target_sr': 44100, 'bitrates': [8, 16, 24, 32, 64]},
-    'opus':    {'target_sr': 44100, 'bitrates': [6, 8, 12, 14, 24, 32]},
+    'mp3':     {'target_sr': 44100, 'bitrates': [8, 16, 24]},
+    'opus':    {'target_sr': 44100, 'bitrates': [8, 14, 24]},
 }
 
-# ---------------------------------------------------------------------------
-# MAIN
-# ---------------------------------------------------------------------------
-def main(codec: str, device: str, bitrates: list = None):
+
+def compress_clip(audio_path, recon_path, codec, bitrate, target_sr, device):
+    """Compress one clip and save it. Falls back to CPU on a CUDA OOM."""
+    audio, native_sr = load_audio(str(audio_path))
+    try:
+        recon, _, _, _ = run_codec(audio=audio, native_sr=native_sr, codec=codec,
+                                   bitrate=bitrate, target_sr=target_sr,
+                                   device=device)
+    except torch.cuda.OutOfMemoryError:
+        print(f"\n  CUDA OOM on {audio_path.stem}, retrying on CPU...")
+        torch.cuda.empty_cache()
+        recon, _, _, _ = run_codec(audio=audio, native_sr=native_sr, codec=codec,
+                                   bitrate=bitrate, target_sr=target_sr,
+                                   device='cpu')
+    sf.write(str(recon_path), recon, target_sr)
+    del audio, recon
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
+def main(codec: str, split: str, device: str,
+         bitrates: list = None, max_files: int = None):
     config    = CODEC_CONFIG[codec]
     target_sr = config['target_sr']
     br_list   = bitrates if bitrates is not None else config['bitrates']
 
     print(f"{'='*60}")
-    print(f"AnuraSet preprocessed {args.split} clip compression")
+    print(f"AnuraSet pre-processed {split} clip compression")
     print(f"  codec:     {codec}")
     print(f"  target_sr: {target_sr} Hz")
     print(f"  bitrates:  {br_list}")
     print(f"  device:    {device}")
+    print(f"  max_files: {max_files}")
     print(f"  Started:   {datetime.now()}")
     print(f"{'='*60}")
 
-    # Load metadata and filter to test subset
-    meta      = pd.read_csv(META_PATH)
-    test_meta = meta[meta['subset'] == args.split].reset_index(drop=True)
-    print(f"\n  {args.split.capitalize()} clips: {len(test_meta):,}")
+    meta       = pd.read_csv(META_PATH)
+    split_meta = meta[meta['subset'] == split].reset_index(drop=True)
+    print(f"\n  {split.capitalize()} clips: {len(split_meta):,}")
 
-    # Build file list: (audio_path, stem) for each test clip
+    # Build the file list: (audio_path, stem) for each clip in the split
     file_list = []
-    for _, row in test_meta.iterrows():
+    for _, row in split_meta.iterrows():
         fname = f"{row['fname']}_{row['min_t']}_{row['max_t']}.wav"
         path  = AUDIO_DIR / row['site'] / fname
         if path.exists():
@@ -102,84 +107,41 @@ def main(codec: str, device: str, bitrates: list = None):
         else:
             print(f"  WARNING: missing file {path}")
 
-    print(f"  Files found on disk: {len(file_list):,} / {len(test_meta):,}")
-    if len(file_list) == 0:
-        print("  ERROR: no files found, check AUDIO_DIR path")
+    print(f"  Files found on disk: {len(file_list):,} / {len(split_meta):,}")
+    if not file_list:
+        print("  ERROR: no files found, check source_dir in config.yaml")
         sys.exit(1)
+
+    if max_files is not None:
+        file_list = file_list[:max_files]
+        print(f"  Limited to the first {len(file_list)} clips (--max_files)")
 
     for bitrate in br_list:
         recon_dir = RECON_ROOT / 'anuraset' / 'preprocessed' / codec / str(bitrate)
         recon_dir.mkdir(parents=True, exist_ok=True)
 
-        # Count already completed files for resumption
+        # Resume: skip clips that already exist
         completed = {p.stem.replace('_reconstructed', '')
                      for p in recon_dir.glob('*_reconstructed.wav')}
         todo = [(p, s) for p, s in file_list if s not in completed]
-
         print(f"\n  {codec} @ {bitrate}: "
-              f"{len(completed)} already done, "
-              f"{len(todo)} remaining")
-
-        if not todo:
-            print(f"  All files already compressed, skipping")
-            continue
+              f"{len(file_list) - len(todo)} already done, {len(todo)} remaining")
 
         n_errors = 0
-        for audio_path, stem in tqdm(todo,
-                                      desc=f"{codec}@{bitrate}",
-                                      unit='file'):
-            recon_path = recon_dir / f"{stem}_reconstructed.wav"
-
+        for audio_path, stem in tqdm(todo, desc=f"{codec}@{bitrate}", unit='file'):
             try:
-                audio, native_sr = load_audio(str(audio_path))
-
-                recon, _, _, _ = run_codec(
-                    audio     = audio,
-                    native_sr = native_sr,
-                    codec     = codec,
-                    bitrate   = bitrate,
-                    target_sr = target_sr,
-                    device    = device,
-                )
-
-                # Save reconstructed audio
-                import soundfile as sf
-                sf.write(str(recon_path), recon, target_sr)
-
-                del audio, recon
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-
-            except torch.cuda.OutOfMemoryError:
-                print(f"\n  CUDA OOM on {stem}, retrying on CPU...")
-                torch.cuda.empty_cache()
-                try:
-                    audio, native_sr = load_audio(str(audio_path))
-                    recon, _, _, _ = run_codec(
-                        audio     = audio,
-                        native_sr = native_sr,
-                        codec     = codec,
-                        bitrate   = bitrate,
-                        target_sr = target_sr,
-                        device    = 'cpu',
-                    )
-                    import soundfile as sf
-                    sf.write(str(recon_path), recon, target_sr)
-                    del audio, recon
-                    gc.collect()
-                except Exception as e:
-                    print(f"\n  CPU retry failed for {stem}: {e}")
-                    n_errors += 1
-
+                compress_clip(audio_path, recon_dir / f"{stem}_reconstructed.wav",
+                              codec, bitrate, target_sr, device)
             except Exception as e:
                 print(f"\n  Error on {stem}: {e}")
                 n_errors += 1
 
-        completed_now = len(list(recon_dir.glob('*_reconstructed.wav')))
-        print(f"\n  {codec} @ {bitrate}: "
-              f"{completed_now:,} files compressed, "
-              f"{n_errors} errors")
+        n_present = sum(1 for _, s in file_list
+                        if (recon_dir / f"{s}_reconstructed.wav").exists())
+        print(f"\n  {codec} @ {bitrate}: {n_present:,}/{len(file_list):,} clips "
+              f"present, {n_errors} errors")
+        if n_present == 0:
+            raise RuntimeError(f"No clips produced for {codec} @ {bitrate}")
 
     print(f"\n{'='*60}")
     print(f"Compression complete")
@@ -189,16 +151,16 @@ def main(codec: str, device: str, bitrates: list = None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Compress AnuraSet preprocessed test clips')
-    parser.add_argument('--split',   default='test',
-                        choices=['train', 'test'],
+        description='Compress AnuraSet pre-processed clips')
+    parser.add_argument('--split',     default='test', choices=['train', 'test'],
                         help='Dataset split to compress')
-    parser.add_argument('--codec',   required=True,
+    parser.add_argument('--codec',     required=True,
                         choices=['encodec', 'dac', 'mp3', 'opus'])
-    parser.add_argument('--device',  default='cuda',
-                        choices=['cuda', 'cpu'])
-    parser.add_argument('--bitrates', default=None,
+    parser.add_argument('--device',    default='cuda', choices=['cuda', 'cpu'])
+    parser.add_argument('--bitrates',  default=None,
                         help='Comma-separated bitrates, e.g. "6.0,24.0"')
+    parser.add_argument('--max_files', type=int, default=None,
+                        help='Only process the first N clips (for testing)')
     args = parser.parse_args()
 
     bitrates = None
@@ -207,13 +169,11 @@ if __name__ == '__main__':
                     for b in args.bitrates.split(',')]
 
     try:
-        main(args.codec, args.device, bitrates)
+        main(args.codec, args.split, args.device, bitrates, args.max_files)
     except Exception:
         tb = traceback.format_exc()
-        print(f"\n{'!'*60}")
-        print(f"FAILED: {tb}")
-        print(f"{'!'*60}")
+        print(f"\n{'!'*60}\nFAILED: {tb}\n{'!'*60}")
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
         error_log = LOGS_DIR / f"compress_anuraset_preprocessed_{args.codec}_error.log"
-        with open(error_log, 'w') as f:
-            f.write(tb)
+        error_log.write_text(tb)
         sys.exit(1)
