@@ -8,9 +8,7 @@ BirdNET embeddings. Supports training on original or compressed audio
 embeddings to evaluate domain-matched training as a mitigation strategy.
 Supported datasets:
     anuraset          -- multilabel, 42 anuran species, clip-level
-    lemur             -- binary, roar vs no-roar, window-level
     lemur_temporal    -- binary, roar vs no-roar, temporal train/test split
-    northeastern      -- multilabel, 81 bird species, window-level (all species)
     northeastern_ovr  -- multilabel, per-species OneVsRest with background
                           negatives (all non-positive train windows),
                           evaluated on the train set
@@ -21,19 +19,15 @@ Usage:
     # Train on original audio
     python scripts/downstream/transfer_learned/train_classifier.py \
         --dataset anuraset
-    # Train on original audio (Northeastern, shared species only)
-    python scripts/downstream/transfer_learned/train_classifier.py \
-        --dataset northeastern_shared
     # Train on compressed audio (domain-matched)
     python scripts/downstream/transfer_learned/train_classifier.py \
-        --dataset lemur --train_source encodec --train_bitrate 6.0
+        --dataset lemur_temporal --train_source encodec --train_bitrate 6.0
     # Train the Northeastern OneVsRest classifier (background negatives)
     python scripts/downstream/transfer_learned/train_classifier.py \
         --dataset northeastern_ovr --train_source original
 """
 import argparse
 import json
-import os
 import sys
 import numpy as np
 import joblib
@@ -62,24 +56,6 @@ DATASET_CONFIG = {
         'species'   : 'anuraset_species_cols.json',
         'multilabel': True,
     },
-    'lemur': {
-        'emb_dir'   : Path(PATHS['results_dir']) / 'downstream' / 'transfer_learned' / 'embeddings' / 'lemur',
-        'train_emb' : 'lemur_train_original_embeddings.npy',
-        'train_lbl' : 'lemur_train_labels.npy',
-        'test_emb'  : 'lemur_test_original_embeddings.npy',
-        'test_lbl'  : 'lemur_test_labels.npy',
-        'species'   : None,
-        'multilabel': False,
-    },
-    'northeastern': {
-        'emb_dir'   : Path(PATHS['results_dir']) / 'downstream' / 'transfer_learned' / 'embeddings' / 'northeastern',
-        'train_emb' : 'northeastern_train_original_embeddings.npy',
-        'train_lbl' : 'northeastern_train_labels.npy',
-        'test_emb'  : 'northeastern_test_original_embeddings.npy',
-        'test_lbl'  : 'northeastern_test_labels.npy',
-        'species'   : 'northeastern_species_cols.json',
-        'multilabel': True,
-    },
     'lemur_temporal': {
         'emb_dir'   : Path(PATHS['results_dir']) / 'downstream' / 'transfer_learned' / 'embeddings' / 'lemur',
         'train_emb' : 'lemur_all_original_embeddings.npy',
@@ -91,10 +67,6 @@ DATASET_CONFIG = {
         'train_idx' : 'lemur_temporal_train_indices.npy',
         'test_idx'  : 'lemur_temporal_test_indices.npy',
     },
-    # 'northeastern_ovr' reuses the same embedding directory as 'northeastern'
-    # but is trained/evaluated via a fully separate code path (see
-    # run_northeastern_ovr below) using positive/background index sets
-    # rather than pre-split train/test label arrays.
     'northeastern_ovr': {
         'emb_dir'   : Path(PATHS['results_dir']) / 'downstream' / 'transfer_learned' / 'embeddings' / 'northeastern',
         'species'   : 'northeastern_species_cols.json',
@@ -183,7 +155,7 @@ def evaluate_binary(y_true, y_scores):
 
 # ---------------------------------------------------------------------------
 # STANDARD TRAIN/TEST PIPELINE
-# (anuraset, lemur, lemur_temporal)
+# (anuraset, lemur_temporal)
 # ---------------------------------------------------------------------------
 def run_standard(args):
     results_dataset = 'lemur' if args.dataset == 'lemur_temporal' \
@@ -197,7 +169,7 @@ def run_standard(args):
     if args.train_source == 'original':
         clf_dir = RESULTS_BASE / 'on_original' / results_dataset / 'classifiers' / \
           ('classifier_temporal' if args.dataset == 'lemur_temporal' else
-           'classifier')
+           '')
     else:
         clf_dir = RESULTS_BASE / 'on_compressed' / results_dataset / 'classifiers' / \
                     (f'classifier_temporal_{source_tag}' if args.dataset == 'lemur_temporal'
@@ -310,10 +282,10 @@ def run_northeastern_ovr(args):
 
     if args.train_source == 'original':
         clf_dir = RESULTS_BASE / 'on_original' / 'northeastern' / \
-                     'classifiers' / f'binary_classifiers_ovr_balanced_{source_tag}'
+                     'classifiers' / f'binary_classifiers_ovr_{source_tag}'
     else:
         clf_dir = RESULTS_BASE / 'on_compressed' / 'northeastern' / \
-                     'classifiers' / f'binary_classifiers_ovr_balanced_{source_tag}'
+                     'classifiers' / f'binary_classifiers_ovr_{source_tag}'
     clf_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"{'='*60}")
@@ -324,7 +296,7 @@ def run_northeastern_ovr(args):
 
     # Load embeddings
     if args.train_source == 'original':
-        emb_path = emb_dir / 'northeastern_all_original_embeddings_fixed.npy'
+        emb_path = emb_dir / 'northeastern_all_original_embeddings.npy'
     else:
         emb_path = emb_dir / f'northeastern_all_{source_tag}_embeddings.npy'
 
@@ -376,7 +348,7 @@ def run_northeastern_ovr(args):
 
     # Train OneVsRestClassifier
     print(f"\nTraining OneVsRestClassifier...")
-    LOGREG_PARAMS_OVR = dict(max_iter=1000, C=1.0, solver='lbfgs', class_weight='balanced')
+    LOGREG_PARAMS_OVR = dict(max_iter=1000, C=1.0, solver='lbfgs')
     clf = OneVsRestClassifier(
         LogisticRegression(**LOGREG_PARAMS_OVR),
         n_jobs=-1)
@@ -433,7 +405,7 @@ def main():
     parser = argparse.ArgumentParser(
         description='Train downstream classifier on BirdNET embeddings')
     parser.add_argument('--dataset', required=True,
-                        choices=['anuraset', 'lemur', 'northeastern',
+                        choices=['anuraset',
                                  'lemur_temporal',
                                  'northeastern_ovr'],)
     parser.add_argument('--train_source', default='original',

@@ -7,10 +7,10 @@ Supports two evaluation scenarios:
     1. Trained on original, evaluated on compressed (default)
        --dataset anuraset --source encodec --bitrate 6.0
     2. Domain-matched: trained on compressed, evaluated on same compressed
-       --dataset lemur --source dac --bitrate 9 \
+       --dataset lemur_temporal --source dac --bitrate 9 \
        --train_source dac --train_bitrate 9
-Supported datasets: anuraset, lemur, lemur_temporal,
-                    northeastern, northeastern_ovr
+Supported datasets: anuraset, lemur_temporal,
+                    northeastern_ovr
 Saves to:
     On original classifier:
         results/downstream/transfer_learned/on_original/{dataset}/
@@ -46,14 +46,6 @@ DATASET_CONFIG = {
         'ovr'        : False,
         'temporal'   : False,
     },
-    'lemur': {
-        'emb_dir'    : Path(PATHS['results_dir']) / 'downstream' / 'transfer_learned' / 'embeddings' / 'lemur',
-        'test_lbl'   : 'lemur_test_labels.npy',
-        'species'    : None,
-        'multilabel' : False,
-        'ovr'        : False,
-        'temporal'   : False,
-    },
     'lemur_temporal': {
         'emb_dir'    : Path(PATHS['results_dir']) / 'downstream' / 'transfer_learned' / 'embeddings' / 'lemur',
         'all_emb'    : 'lemur_all_original_embeddings.npy',
@@ -64,14 +56,6 @@ DATASET_CONFIG = {
         'multilabel' : False,
         'ovr'        : False,
         'temporal'   : True,
-    },
-    'northeastern': {
-        'emb_dir'    : Path(PATHS['results_dir']) / 'downstream' / 'transfer_learned' / 'embeddings' / 'northeastern',
-        'test_lbl'   : 'northeastern_test_labels.npy',
-        'species'    : 'northeastern_species_cols.json',
-        'multilabel' : True,
-        'ovr'        : False,
-        'temporal'   : False,
     },
     'northeastern_ovr': {
         'emb_dir'    : Path(PATHS['results_dir']) / 'downstream' / 'transfer_learned' / 'embeddings' / 'northeastern',
@@ -89,7 +73,7 @@ THRESHOLD_SCAN = np.arange(0.1, 0.91, 0.05)
 def get_emb_path(emb_dir, dataset, source, bitrate):
     if dataset == 'northeastern_ovr':
         if source == 'original':
-            return emb_dir / 'northeastern_all_original_embeddings_fixed.npy'
+            return emb_dir / 'northeastern_all_original_embeddings.npy'
         return emb_dir / f'northeastern_all_{source}{bitrate}_embeddings.npy'
     if dataset == 'lemur_temporal':
         if source == 'original':
@@ -420,8 +404,8 @@ def main():
     parser = argparse.ArgumentParser(
         description='Evaluate transfer-learned classifier on compressed embeddings')
     parser.add_argument('--dataset', required=True,
-                        choices=['anuraset', 'lemur', 'lemur_temporal',
-                                 'northeastern', 'northeastern_ovr'])
+                        choices=['anuraset', 'lemur_temporal',
+                                 'northeastern_ovr'])
     parser.add_argument('--source', required=True,
                         choices=['original', 'encodec', 'dac', 'mp3', 'opus'])
     parser.add_argument('--bitrate', default=None)
