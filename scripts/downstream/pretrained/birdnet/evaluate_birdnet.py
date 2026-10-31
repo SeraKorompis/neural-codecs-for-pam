@@ -6,6 +6,16 @@ same binary evaluation framework as the transfer-learned classifiers,
 enabling direct comparison.
 Negative sampling: all non-positive test windows, consistent
 with the northeastern transfer-learned evaluation.
+
+Requires the files written by the transfer-learned pipeline
+(results/downstream/transfer_learned/embeddings/northeastern/):
+    northeastern_all_metadata.csv, northeastern_species_cols.json
+        (scripts/downstream/transfer_learned/extract_birdnet_embeddings.py)
+    northeastern_positive_test_indices.json,
+    northeastern_background_test_indices.npy
+        (scripts/downstream/transfer_learned/create_temporal_split.py --dataset northeastern)
+Run these first, so that both approaches are evaluated on the same test windows.
+
 Saves to:
     results/downstream/pretrained/birdnet/
         macro_metrics.csv
