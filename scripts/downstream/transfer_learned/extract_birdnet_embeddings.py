@@ -2,55 +2,72 @@
 """
 scripts/downstream/transfer_learned/extract_birdnet_embeddings.py
 
-Extracts BirdNET penultimate layer (1024-dim) embeddings from audio files
-for downstream classifier evaluation. BirdNET's weights are fully frozen,
-it is used as a fixed feature extractor only. The logistic regression
-classifier trained on these embeddings is the only learned component.
-
-Supports AnuraSet (clip-level), Lemur (window-level) and Northeastern
-(window-level, all windows kept with multilabel annotations).
-Handles both original and compressed audio sources (EnCodec, DAC, MP3, Opus).
+Extracts BirdNET v2.4 penultimate-layer embeddings (1024-dim, one per
+3-second window at 48 kHz) from audio files for downstream classifier
+evaluation. BirdNET's weights are fully frozen and it is used as a fixed
+feature extractor only. The logistic regression classifier trained on these
+embeddings (train_classifier.py) is the only learned component.
 
 Pipeline:
-    audio → BirdNET CNN (frozen) → 1024-dim embedding → logistic regression
+    audio -> BirdNET CNN (frozen) -> 1024-dim embedding -> logistic regression
+
+Supported datasets and splits:
+    anuraset      --split train | test   clip-level, predefined split
+    lemur         --split all            annotated roar / no-roar windows,
+                                         all three recorders
+    northeastern  --split all            every 3-second window, multilabel
+                                         annotations (81 species)
+
+Sources: original audio, or reconstructions (EnCodec, DAC, MP3, Opus) read
+from recon_dir in config.yaml. Reconstructions must already exist (run the
+reconstruction stage first). Embedding extraction resumes: finished files and
+chunks are skipped, and the final .npy is not overwritten if it exists.
+The first run downloads the BirdNET model, so it needs internet access.
 
 Usage:
-    # AnuraSet original test embeddings
+    # AnuraSet, original test embeddings
     python scripts/downstream/transfer_learned/extract_birdnet_embeddings.py \
         --dataset anuraset --split test --source original --device CPU
 
-    # AnuraSet compressed test embeddings (EnCodec 6.0 kbps)
+    # AnuraSet, compressed (EnCodec 6.0 kbps)
     python scripts/downstream/transfer_learned/extract_birdnet_embeddings.py \
         --dataset anuraset --split test --source encodec --bitrate 6.0 --device CPU
 
-    # Lemur original train embeddings
+    # Lemur, original
     python scripts/downstream/transfer_learned/extract_birdnet_embeddings.py \
-        --dataset lemur --split train --source original --device CPU
+        --dataset lemur --split all --source original --device CPU
 
-    # Northeastern all windows, original
+    # Northeastern, compressed (MP3 8 kbps)
     python scripts/downstream/transfer_learned/extract_birdnet_embeddings.py \
-        --dataset northeastern --split all --source original --device CPU
+        --dataset northeastern --split all --source mp3 --bitrate 8 --device CPU
 
-    # Northeastern all windows, compressed
+    # Quick test on a few clips or files (first N only)
     python scripts/downstream/transfer_learned/extract_birdnet_embeddings.py \
-        --dataset northeastern --split all --source encodec --bitrate 6.0 --device CPU
+        --dataset northeastern --split all --source original --limit 3
 
-Output:
-    AnuraSet: $EPHEMERAL/anuraset_classifier/birdnet_transfer/embeddings/
-        anuraset_{split}_{source}{bitrate}_embeddings.npy
-        anuraset_{split}_labels.npy
+Output (all under <results_dir>/downstream/transfer_learned/embeddings/<dataset>/):
+    {tag} is "original", or codec and bitrate with no separator
+    (mp38, dac3, encodec6.0). Integer bitrates for MP3, DAC and Opus,
+    decimal for EnCodec.
+
+    anuraset/
+        anuraset_{split}_{tag}_embeddings.npy
+        anuraset_{split}_labels.npy          (n_clips, 42) multilabel
         anuraset_{split}_metadata.csv
-
-    Lemur: $EPHEMERAL/lemur_classifier/embeddings/
-        lemur_{split}_{source}{bitrate}_embeddings.npy
-        lemur_{split}_labels.npy
-        lemur_{split}_metadata.csv
-
-    Northeastern: $EPHEMERAL/northeastern_classifier/embeddings/
-        northeastern_all_{source}{bitrate}_embeddings.npy
-        northeastern_all_labels.npy          (n_windows, 80) multilabel
+        anuraset_species_cols.json           (42 species in label column order)
+    lemur/
+        lemur_all_{tag}_embeddings.npy
+        lemur_all_labels.npy                 (n_windows,) 1 = roar, 0 = no-roar
+        lemur_all_metadata.csv               (filename, recorder, window_start, label)
+    northeastern/
+        northeastern_all_{tag}_embeddings.npy
+        northeastern_all_labels.npy          (n_windows, 81) multilabel
         northeastern_all_metadata.csv        (filename, window_start, site, date)
-        northeastern_species_cols.json       (80 species in label column order)
+        northeastern_species_cols.json       (81 species in label column order)
+
+    Labels, metadata and species files are identical for every source, so they
+    are written once (from whichever source is extracted first) and not
+    overwritten. Partial results are kept in a chunks/ subfolder.
 """
 import argparse
 import os
@@ -72,18 +89,6 @@ from src.config import PATHS
 # ---------------------------------------------------------------------------
 # PATHS
 # ---------------------------------------------------------------------------
-# EPHEMERAL  = Path(os.environ.get('EPHEMERAL', str(PROJECT_ROOT)))
-# RECON_ROOT = Path('/rds/general/project/bugg/live/seraphina_compression/reconstructed_audio')
-
-# LEMUR_DIR  = PROJECT_ROOT / 'data' / 'black_and_white_ruffed_lemur'
-
-# ANURASET_PRE_DIR = EPHEMERAL / 'anuraset_classifier' / 'data' / 'anuraset_preprocessed'
-# ANURASET_OUT_DIR = EPHEMERAL / 'anuraset_classifier' / 'birdnet_transfer' / 'embeddings'
-
-# LEMUR_OUT_DIR    = EPHEMERAL / 'lemur_classifier' / 'embeddings'
-
-# NORTHEASTERN_DIR     = PROJECT_ROOT / 'data' / 'northeastern_us_soundscapes'
-# NORTHEASTERN_OUT_DIR = EPHEMERAL / 'northeastern_classifier' / 'embeddings'
 
 RECON_ROOT           = Path(PATHS['recon_dir'])
 ANURASET_PRE_DIR     = Path(PATHS['source_dir']) / 'anuraset' / 'preprocessed'
@@ -261,7 +266,7 @@ def get_audio_path_northeastern(filename: str, source: str, bitrate) -> Path:
 # ANURASET EXTRACTION
 # ---------------------------------------------------------------------------
 def extract_anuraset(split: str, source: str, bitrate,
-                     device: str, out_dir: Path):
+                     device: str, out_dir: Path, limit: int = None):
     out_dir.mkdir(parents=True, exist_ok=True)
     source_tag = 'original' if source == 'original' else f'{source}{bitrate}'
     emb_path   = out_dir / f'anuraset_{split}_{source_tag}_embeddings.npy'
@@ -276,10 +281,15 @@ def extract_anuraset(split: str, source: str, bitrate,
 
     meta       = pd.read_csv(ANURASET_PRE_DIR / 'metadata.csv')
     split_meta = meta[meta['subset'] == split].reset_index(drop=True)
+    if limit:
+        split_meta = split_meta.head(limit)
     species_cols = [c for c in meta.columns
                     if c not in ('sample_name','fname','min_t','max_t',
                                  'site','date','species_number','subset')]
     labels = split_meta[species_cols].values.astype(np.float32)
+    sp_json = out_dir / 'anuraset_species_cols.json'
+    if not sp_json.exists():
+        json.dump(species_cols, open(sp_json, 'w'), indent=2)
     print(f"  {split} clips: {len(split_meta):,}")
 
     done_chunks = {int(p.stem.replace('chunk_', ''))
@@ -336,7 +346,7 @@ def extract_anuraset(split: str, source: str, bitrate,
 # LEMUR EXTRACTION
 # ---------------------------------------------------------------------------
 def extract_lemur(split: str, source: str, bitrate,
-                  device: str, out_dir: Path):
+                  device: str, out_dir: Path, limit: int = None):
     out_dir.mkdir(parents=True, exist_ok=True)
     source_tag = 'original' if source == 'original' else f'{source}{bitrate}'
     emb_path   = out_dir / f'lemur_{split}_{source_tag}_embeddings.npy'
@@ -369,7 +379,7 @@ def extract_lemur(split: str, source: str, bitrate,
 
     for recorder, audio_files, ann_dir in recorders:
         print(f"\n  Recorder: {recorder} ({len(audio_files)} files)")
-        for audio_path in audio_files:
+        for audio_path in (audio_files[:limit] if limit else audio_files):
             svl_path = ann_dir / (audio_path.stem + '.svl')
             if not svl_path.exists():
                 print(f"    WARNING: no annotation for {audio_path.name}")
@@ -462,7 +472,7 @@ def extract_lemur(split: str, source: str, bitrate,
     else:
         print("  WARNING: no embeddings extracted")
 
-def extract_lemur_all(source: str, bitrate, device: str, out_dir: Path):
+def extract_lemur_all(source: str, bitrate, device: str, out_dir: Path, limit: int = None):
     """
     Extract BirdNET embeddings for all Lemur recordings from all recorders.
     All annotated windows are extracted (no recorder-based split).
@@ -498,7 +508,7 @@ def extract_lemur_all(source: str, bitrate, device: str, out_dir: Path):
 
     for recorder, audio_files, ann_dir in recorders:
         print(f"\n  Recorder: {recorder} ({len(audio_files)} files)")
-        for audio_path in audio_files:
+        for audio_path in (audio_files[:limit] if limit else audio_files):
             svl_path = ann_dir / (audio_path.stem + '.svl')
             if not svl_path.exists():
                 print(f"    WARNING: no annotation for {audio_path.name}")
@@ -596,7 +606,7 @@ def extract_lemur_all(source: str, bitrate, device: str, out_dir: Path):
 # ---------------------------------------------------------------------------
 # NORTHEASTERN EXTRACTION
 # ---------------------------------------------------------------------------
-def extract_northeastern(source: str, bitrate, device: str, out_dir: Path):
+def extract_northeastern(source: str, bitrate, device: str, out_dir: Path, limit: int = None):
     """
     Extract BirdNET embeddings for all Northeastern US Soundscape recordings.
     All 3-second windows are extracted (no annotation filtering).
@@ -652,6 +662,8 @@ def extract_northeastern(source: str, bitrate, device: str, out_dir: Path):
     # Get all audio files
     audio_dir  = NORTHEASTERN_DIR / 'soundscape_data'
     wav_files  = sorted(audio_dir.glob('*.wav'))
+    if limit:
+        wav_files = wav_files[:limit]
     print(f"  Audio files: {len(wav_files)}")
 
     model      = load_birdnet(device)
@@ -778,55 +790,6 @@ def extract_northeastern(source: str, bitrate, device: str, out_dir: Path):
     else:
         print("  WARNING: no embeddings extracted")
 
-
-# # ---------------------------------------------------------------------------
-# # MAIN
-# # ---------------------------------------------------------------------------
-# def main():
-#     parser = argparse.ArgumentParser(
-#         description='Extract BirdNET embeddings for downstream evaluation')
-#     parser.add_argument('--dataset', required=True,
-#                         choices=['anuraset', 'lemur', 'northeastern'])
-#     parser.add_argument('--split',   required=True,
-#                         choices=['train', 'test', 'all'],
-#                         help='all = extract all files (Northeastern only)')
-#     parser.add_argument('--source',  required=True,
-#                         choices=['original', 'encodec', 'dac', 'mp3', 'opus'])
-#     parser.add_argument('--bitrate', default=None,
-#                         help='Codec bitrate (e.g. 6.0 for EnCodec, 9 for DAC)')
-#     parser.add_argument('--device',  default='CPU',
-#                         choices=['CPU', 'GPU'])
-#     args = parser.parse_args()
-
-#     if args.source != 'original' and args.bitrate is None:
-#         parser.error('--bitrate required when --source is not original')
-#     if args.dataset != 'northeastern' and args.split == 'all':
-#         parser.error('--split all is only valid for northeastern')
-    
-
-#     bitrate = None
-#     if args.bitrate is not None:
-#         bitrate = float(args.bitrate) if '.' in args.bitrate else int(args.bitrate)
-
-#     print(f"{'='*60}")
-#     print(f"BirdNET embedding extraction")
-#     print(f"  dataset: {args.dataset}")
-#     print(f"  split:   {args.split}")
-#     print(f"  source:  {args.source}"
-#           + (f" @ {bitrate}" if bitrate is not None else ""))
-#     print(f"  device:  {args.device}")
-#     print(f"{'='*60}")
-
-#     if args.dataset == 'anuraset':
-#         extract_anuraset(args.split, args.source, bitrate,
-#                          args.device, ANURASET_OUT_DIR)
-#     elif args.dataset == 'lemur':
-#         extract_lemur(args.split, args.source, bitrate,
-#                       args.device, LEMUR_OUT_DIR)
-#     else:  # northeastern
-#         extract_northeastern(args.source, bitrate,
-#                              args.device, NORTHEASTERN_OUT_DIR)
-
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -844,6 +807,8 @@ def main():
                         help='Codec bitrate (e.g. 6.0 for EnCodec, 9 for DAC)')
     parser.add_argument('--device',  default='CPU',
                         choices=['CPU', 'GPU'])
+    parser.add_argument('--limit', type=int, default=None,
+                        help='Use only the first N clips/files (quick tests)')
     args = parser.parse_args()
 
     if args.source != 'original' and args.bitrate is None:
@@ -866,17 +831,17 @@ def main():
 
     if args.dataset == 'anuraset':
         extract_anuraset(args.split, args.source, bitrate,
-                         args.device, ANURASET_OUT_DIR)
+                         args.device, ANURASET_OUT_DIR, args.limit)
     elif args.dataset == 'lemur':
         if args.split == 'all':
             extract_lemur_all(args.source, bitrate,
-                              args.device, LEMUR_OUT_DIR)
+                              args.device, LEMUR_OUT_DIR, args.limit)
         else:
             extract_lemur(args.split, args.source, bitrate,
-                          args.device, LEMUR_OUT_DIR)
+                          args.device, LEMUR_OUT_DIR, args.limit)
     else:  # northeastern
         extract_northeastern(args.source, bitrate,
-                             args.device, NORTHEASTERN_OUT_DIR)
+                             args.device, NORTHEASTERN_OUT_DIR, args.limit)
 
 if __name__ == '__main__':
     main()
