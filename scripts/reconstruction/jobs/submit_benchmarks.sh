@@ -17,9 +17,12 @@ declare -A BITRATES=(
 DATASETS="${DATASETS:-anuraset northeastern_birds lemur_s4a lemur_swift1 lemur_swift2}"
 MODE="${MODE:-full}"
 WALLTIME="24:00:00"
+CODECS="${CODECS:-encodec dac mp3 opus}"
+CODECS="${CODECS//:/ }"
 
 for dataset in $DATASETS; do
   for codec in "${!BITRATES[@]}"; do
+    [[ " $CODECS " == *" $codec "* ]] || continue
     if [[ $codec == encodec || $codec == dac ]]; then
       device=cuda
       res="select=1:ncpus=4:mem=32gb:ngpus=1:gpu_type=L40S"
