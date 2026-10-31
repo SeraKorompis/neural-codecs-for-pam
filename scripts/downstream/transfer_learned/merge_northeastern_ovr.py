@@ -2,11 +2,11 @@
 import pandas as pd
 from pathlib import Path
 import sys
-sys.path.insert(0, '/rds/general/user/stk25/home/ai_audio_compression/project')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 from src.config import PATHS
 
 results_dir  = Path(PATHS['results_dir']) / 'downstream' / 'transfer_learned' / \
-               'on_original' / 'northeastern'
+               (sys.argv[1] if len(sys.argv) > 1 else 'on_original') / 'northeastern'
 per_cond_dir = results_dir / 'raw' / 'per_condition'
 
 macro_files = sorted(per_cond_dir.glob('macro_metrics_ovr_*.csv'))
