@@ -1,0 +1,8 @@
+# config.yaml (TEST CONFIG: do not use for real runs)
+# source_dir is only read from; everything else points at the test folder.
+
+paths:
+  source_dir:  /rds/general/project/bugg/live/seraphina_compression/source_audio
+  recon_dir:   /rds/general/project/bugg/live/seraphina_compression/test_run/reconstructed_audio
+  results_dir: /rds/general/project/bugg/live/seraphina_compression/test_run/results
+  figures_dir: /rds/general/project/bugg/live/seraphina_compression/test_run/figures
