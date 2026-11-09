@@ -14,6 +14,8 @@ Usage:
 
 --set comparable (default): EnCodec 6.0 kbps and DAC 5.33 kbps
 --set best:                 EnCodec 24.0 kbps and DAC 8.0 kbps
+--font_scale X:            multiply most font sizes by X (default 1.3)
+                           key boxes use KEY_SCALE, bottom legend LEGEND_FONTSIZE
 """
 import sys
 import argparse
@@ -45,6 +47,9 @@ FONTSIZE   = 15
 LINEWIDTH  = 2
 MARKERSIZE = 8
 AUC_MIN, AUC_MAX = 0.50, 1.01
+FONT_SCALE = 1.3        # all text in the figure
+KEY_SCALE = 1.15        # 'Least/Most degraded' key boxes (relative to original size)
+LEGEND_FONTSIZE = 20    # bottom legend (absolute size, after scaling)
 
 # (label used by make_scatter, codec, kbps) for panels (b) and (c)
 SCATTER_SETS = {
@@ -110,6 +115,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--set', default='comparable',
                         choices=list(SCATTER_SETS))
+    parser.add_argument('--font_scale', type=float, default=FONT_SCALE)
     args = parser.parse_args()
 
     plt.rcParams['font.family'] = 'sans-serif'
@@ -154,11 +160,19 @@ def main():
         Line2D([0], [0], color='#444444', linestyle='--', linewidth=1.1,
                label='No change (y = x)'),
     ]
-    fig.legend(handles=legend_elements, loc='lower center', ncol=5,
+    fig.legend(handles=legend_elements, loc='lower center', ncol=3,
                fontsize=FONTSIZE - 2, frameon=False,
                bbox_to_anchor=(0.5, 0.0))
-    fig.subplots_adjust(left=0.05, right=0.99, top=0.93, bottom=0.17,
+    fig.subplots_adjust(left=0.05, right=0.99, top=0.93, bottom=0.26,
                         wspace=0.18)
+
+    for t in fig.findobj(matplotlib.text.Text):
+        if t.get_text().startswith('Least degraded'):
+            t.set_fontsize(t.get_fontsize() * KEY_SCALE)
+        else:
+            t.set_fontsize(t.get_fontsize() * args.font_scale)
+    for t in fig.legends[0].get_texts():
+        t.set_fontsize(LEGEND_FONTSIZE)
 
     out = FIGS_DIR / f'pretrained_three_panel_{args.set}'
     plt.savefig(f'{out}.png', dpi=300, bbox_inches='tight')
