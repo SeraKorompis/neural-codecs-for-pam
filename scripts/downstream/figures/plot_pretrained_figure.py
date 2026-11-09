@@ -137,6 +137,7 @@ def main():
     ax_c = fig.add_subplot(gs[2])
 
     plot_macro_panel(ax_a, macro_path)
+    ax_a.set_box_aspect(1)   # same square box as (b) and (c), so the axes align
 
     for ax, tag, show_y, (label, codec, kbps) in zip(
             [ax_b, ax_c], ['(b)', '(c)'], [True, False],
