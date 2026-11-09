@@ -130,7 +130,7 @@ def main():
 
     summary = load_and_pivot_data(species_path, 'birdnet')
 
-    fig = plt.figure(figsize=(22, 8))
+    fig = plt.figure(figsize=(22, 9.5))
     gs = fig.add_gridspec(1, 3, width_ratios=[1.0, 1.0, 1.0])
     ax_a = fig.add_subplot(gs[0])
     ax_b = fig.add_subplot(gs[1])
@@ -163,7 +163,7 @@ def main():
     fig.legend(handles=legend_elements, loc='lower center', ncol=3,
                fontsize=FONTSIZE - 2, frameon=False,
                bbox_to_anchor=(0.5, 0.0))
-    fig.subplots_adjust(left=0.05, right=0.99, top=0.93, bottom=0.26,
+    fig.subplots_adjust(left=0.05, right=0.99, top=0.93, bottom=0.22,
                         wspace=0.18)
 
     for t in fig.findobj(matplotlib.text.Text):
