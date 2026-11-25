@@ -24,6 +24,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from matplotlib.colors import to_hex
 from matplotlib.lines import Line2D
 from pathlib import Path
 
@@ -34,11 +35,26 @@ from src.config import PATHS
 from plot_auc_scatter_all import (load_and_pivot_data, make_scatter,
                                   BIRDNET_RES_DIR, N_LABEL)
 
+# Colour-blind-safe colours for the scatter panels: blue = least degraded,
+# vermillion = most degraded. recolour_scatter() swaps the colours that
+# make_scatter hard-codes (green, red, pink) for these after the panels are drawn.
+GOOD_COLOR, GOOD_TEXT = '#0072B2', '#00436b'
+BAD_COLOR,  BAD_TEXT  = '#D55E00', '#8a3b00'
+SHADE_COLOR = '#ffcccc'
+COLOUR_SWAP = {
+    '#2ca02c': GOOD_COLOR,   # least degraded dots and numeral box edges
+    '#1b691b': GOOD_TEXT,    # least degraded numerals
+    '#d62728': BAD_COLOR,    # most degraded dots and numeral box edges
+    '#a81c1c': BAD_TEXT,     # most degraded numerals
+    '#ffcccc': SHADE_COLOR,  # degradation region
+}
+
 FIGS_DIR = Path(PATHS['figures_dir']) / 'downstream' / 'birdnet'
 FIGS_DIR.mkdir(parents=True, exist_ok=True)
 
-COLORS  = {'encodec': '#1f77b4', 'dac': '#ff7f0e',
-           'mp3': '#2ca02c', 'opus': '#9467bd'}
+# Okabe-Ito colour-blind-safe palette: blue, orange, bluish green, reddish purple
+COLORS  = {'encodec': '#0072B2', 'dac': '#E69F00',
+           'mp3': '#009E73', 'opus': '#CC79A7'}
 MARKERS = {'encodec': 'o', 'dac': 's', 'mp3': '^', 'opus': 'D'}
 NAMES   = {'encodec': 'EnCodec', 'dac': 'DAC', 'mp3': 'MP3', 'opus': 'Opus'}
 DAC_KBPS = {2: 1.78, 3: 2.67, 6: 5.33, 9: 8.0}
@@ -48,8 +64,8 @@ LINEWIDTH  = 2
 MARKERSIZE = 8
 AUC_MIN, AUC_MAX = 0.50, 1.01
 FONT_SCALE = 1.3        # all text in the figure
-KEY_SCALE = 1.15        # 'Least/Most degraded' key boxes (relative to original size)
-LEGEND_FONTSIZE = 20    # bottom legend (absolute size, after scaling)
+KEY_SCALE = 1.3        # 'Least/Most degraded' key boxes (relative to original size)
+LEGEND_FONTSIZE = 22    # bottom legend (absolute size, after scaling)
 
 # (label used by make_scatter, codec, kbps) for panels (b) and (c)
 SCATTER_SETS = {
@@ -111,6 +127,26 @@ def plot_macro_panel(ax, macro_path):
     ax.legend(fontsize=13, frameon=False, loc='best')
 
 
+def recolour_scatter(axes):
+    """Replace the colours hard-coded in make_scatter with the ones above."""
+    def swapped(colour):
+        return COLOUR_SWAP.get(to_hex(colour))
+
+    for ax in axes:
+        for coll in ax.collections:          # dots and the shaded region
+            for get, put in ((coll.get_facecolor, coll.set_facecolor),
+                             (coll.get_edgecolor, coll.set_edgecolor)):
+                colours = get()
+                if len(colours) and swapped(colours[0]):
+                    put(swapped(colours[0]))
+        for text in ax.texts:                # numerals and their boxes
+            if swapped(text.get_color()):
+                text.set_color(swapped(text.get_color()))
+            box = text.get_bbox_patch()
+            if box is not None and swapped(box.get_edgecolor()):
+                box.set_edgecolor(swapped(box.get_edgecolor()))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--set', default='comparable',
@@ -146,17 +182,18 @@ def main():
                      f'auc_{codec}_{kbps}', f'drop_{codec}_{kbps}',
                      label, tag, AUC_MIN, AUC_MAX,
                      macro_path, codec, kbps, show_ylabel=show_y)
+    recolour_scatter([ax_b, ax_c])
 
     legend_elements = [
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#2ca02c',
+        Line2D([0], [0], marker='o', color='w', markerfacecolor=GOOD_COLOR,
                markersize=9, markeredgecolor='black', markeredgewidth=0.7,
                label=f'Top {N_LABEL} least degraded (upper quartile, i-v)'),
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#d62728',
+        Line2D([0], [0], marker='o', color='w', markerfacecolor=BAD_COLOR,
                markersize=9, markeredgecolor='black', markeredgewidth=0.7,
                label=f'Top {N_LABEL} most degraded (upper quartile, vi-x)'),
         Line2D([0], [0], marker='o', color='w', markerfacecolor='#999999',
                markersize=8, markeredgewidth=0, label='Other species'),
-        mpatches.Patch(facecolor='#ffcccc', alpha=0.6,
+        mpatches.Patch(facecolor=SHADE_COLOR, alpha=0.6,
                        label='Degradation region (y < x)'),
         Line2D([0], [0], color='#444444', linestyle='--', linewidth=1.1,
                label='No change (y = x)'),
