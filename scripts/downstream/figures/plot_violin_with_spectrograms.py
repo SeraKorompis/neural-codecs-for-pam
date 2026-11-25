@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """
 scripts/downstream/figures/plot_violin_with_spectrograms.py
-Combined figure formatted for Methods in Ecology and Evolution (MEE / BES):
+Combined figure:
     (a) Left:  Per-species confidence change violin plot
                Samples marked with Roman numerals i, ii, iii, iv
     (b) Right top:    Spectrogram pairs for calls with highest confidence gain
     (c) Right bottom: Spectrogram pairs for calls with highest confidence loss
-Supports three datasets via --dataset flag:
+Supports four datasets via --dataset flag:
     birdnet      -- Northeastern US Soundscapes, pre-trained BirdNET
     anuraset     -- AnuraSet, transfer-learned classifier
     lemur        -- Lemur, transfer-learned classifier (binary, 1 class)
     northeastern -- Northeastern US Soundscapes, transfer-learned classifier
+Optional: --codec (default encodec) and --bitrate (default 24.0). The bitrate
+is added to the output file name, e.g. violin_with_spectrograms_birdnet_6kbps.png
 Usage:
-    python scripts/downstream/figures/plot_violin_with_spectrograms.py --dataset birdnet
+    python scripts/downstream/figures/plot_violin_with_spectrograms.py --dataset birdnet --bitrate 6
     python scripts/downstream/figures/plot_violin_with_spectrograms.py --dataset anuraset
     python scripts/downstream/figures/plot_violin_with_spectrograms.py --dataset lemur
-    python scripts/downstream/figures/plot_violin_with_spectrograms.py --dataset northeastern
+    python scripts/downstream/figures/plot_violin_with_spectrograms.py --dataset northeastern --bitrate 6
 """
 import sys
 import json
@@ -223,6 +225,7 @@ def load_call_df_northeastern():
     ann['common_name'] = ann['ebird_code'].map(ebird_to_common)
     return call_df, ann, 32000
 
+
 def load_call_df_anuraset():
     print("Loading AnuraSet data...")
     with open(ANURASET_SPECIES_JSON) as f:
@@ -270,44 +273,6 @@ def load_call_df_anuraset():
     call_df = call_df.merge(n_pos_test, on='species', how='left')
     call_df['drop_enc'] = call_df['conf_enc'] - call_df['conf_orig']
     return call_df, meta_test, 22050
-
-
-# def load_call_df_anuraset():
-#     print("Loading AnuraSet data...")
-#     with open(ANURASET_SPECIES_JSON) as f:
-#         species_cols = json.load(f)
-
-#     meta      = pd.read_csv(ANURASET_META)
-#     meta_test = meta[meta['subset'] == 'test'].reset_index(drop=True)
-
-#     scores_orig = pd.read_csv(ANURASET_SCORES_DIR / 'scores_original.csv')
-#     scores_enc  = pd.read_csv(
-#         ANURASET_SCORES_DIR / f'scores_{CODEC}{BITRATE}.csv')
-
-#     id_cols = ['clip_idx', 'condition', 'codec', 'bitrate', 'kbps']
-#     orig_long = scores_orig.melt(
-#         id_vars=[c for c in id_cols if c in scores_orig.columns],
-#         value_vars=[c for c in species_cols if c in scores_orig.columns],
-#         var_name='species', value_name='conf_orig')
-#     enc_long = scores_enc.melt(
-#         id_vars=[c for c in id_cols if c in scores_enc.columns],
-#         value_vars=[c for c in species_cols if c in scores_enc.columns],
-#         var_name='species', value_name='conf_enc')
-
-#     call_df = orig_long[['clip_idx', 'species', 'conf_orig']].merge(
-#         enc_long[['clip_idx', 'species', 'conf_enc']],
-#         on=['clip_idx', 'species'], how='inner')
-#     call_df = call_df.merge(
-#         meta_test[['fname', 'min_t', 'max_t', 'site']].reset_index().rename(
-#             columns={'index': 'clip_idx'}),
-#         on='clip_idx', how='left')
-#     gt_long = meta_test[species_cols].reset_index().rename(
-#         columns={'index': 'clip_idx'}).melt(
-#         id_vars='clip_idx', var_name='species', value_name='ground_truth_label')
-#     call_df = call_df.merge(gt_long, on=['clip_idx', 'species'], how='left')
-#     call_df = call_df[call_df['ground_truth_label'] == 1].copy()
-#     call_df['drop_enc'] = call_df['conf_enc'] - call_df['conf_orig']
-#     return call_df, meta_test, 22050
 
 
 def load_call_df_lemur():
@@ -561,40 +526,13 @@ def draw_annotation(ax, ann_start_abs, ann_end_abs, low_freq, high_freq):
 # ---------------------------------------------------------------------------
 # SELECT EXAMPLES
 # ---------------------------------------------------------------------------
-# def select_examples(call_df):
-#     species_detected = (call_df[call_df['conf_orig'] > 0]
-#                         .groupby('species').size())
-#     species_detected = species_detected[
-#         species_detected >= 10].index.tolist()
-#     df = call_df[call_df['species'].isin(species_detected)].copy()
-#     species_order = (df.groupby('species')['drop_enc']
-#                      .median().sort_values().index.tolist())
-#     example_rows = []
-#     for sp in [species_order[-1], species_order[-2]]:
-#         sp_calls = df[(df['species'] == sp) &
-#                       (df['conf_orig'] >= MIN_ORIG_CONF)]
-#         if sp_calls.empty:
-#             sp_calls = df[df['species'] == sp]
-#         example_rows.append(sp_calls.loc[sp_calls['drop_enc'].idxmax()].copy())
-#     for sp in [species_order[0], species_order[1]]:
-#         sp_calls = df[(df['species'] == sp) &
-#                       (df['conf_orig'] >= MIN_ORIG_CONF)]
-#         if sp_calls.empty:
-#             sp_calls = df[df['species'] == sp]
-#         example_rows.append(sp_calls.loc[sp_calls['drop_enc'].idxmin()].copy())
-#     examples = pd.DataFrame(example_rows).reset_index(drop=True)
-#     examples['label'] = LABELS
-#     examples['color'] = [ROBUST_COLOR, ROBUST_COLOR,
-#                          DEGRADED_COLOR, DEGRADED_COLOR]
-#     return df, species_order, examples
-
 def select_examples(call_df):
-    if 'n_pos_test' not in call_df.columns:
-        raise ValueError(
-            "call_df must contain 'n_pos_test' column. "
-            "Ensure the data loader merges n_pos_test before calling select_examples()."
-        )
-    n_pos = call_df.groupby('species')['n_pos_test'].min()
+    # Species with at least 10 positive test windows. AnuraSet supplies
+    # n_pos_test; for the other datasets use the number of positive windows.
+    if 'n_pos_test' in call_df.columns:
+        n_pos = call_df.groupby('species')['n_pos_test'].min()
+    else:
+        n_pos = call_df.groupby('species').size()
     species_detected = n_pos[n_pos >= 10].index.tolist()
 
     df = call_df[call_df['species'].isin(species_detected)].copy()
@@ -704,9 +642,6 @@ def render_spectrogram_pair(fig, gs_spec, gs_title, row_in_group,
             ax.set_ylim(ymin, ymax)
             ax.set_xlim(times_abs[0], times_abs[-1])
 
-            # Remove the lowest x tick to avoid overlap with y-axis label
-            # ticks = [t for t in ax.get_xticks() if t > times_abs[0]]
-            # ax.set_xticks(ticks)
             ax.tick_params(labelsize=FS_SMALL)
             ax.xaxis.set_major_locator(plt.MaxNLocator(2))
             ax.yaxis.set_major_locator(plt.MaxNLocator(3))
@@ -847,14 +782,6 @@ def plot_figure(call_df, species_order, examples, ann_or_meta,
                 native_sr=native_sr,
                 is_last_row=(row_in_group == 1))
 
-    pos_top = right_gs[0, 0].get_position(fig)
-    pos_bot = right_gs[1, 0].get_position(fig)
-    mid_y   = (pos_top.y0 + pos_bot.y1) / 2.0
-    # fig.add_artist(plt.Line2D(
-    #     [pos_top.x0 - 0.03, pos_top.x1 + 0.01], [mid_y, mid_y],
-    #     transform=fig.transFigure,
-    #     color='grey', linewidth=1.1, linestyle='--', alpha=0.5))
-
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"\nSaved: {output_path}")
@@ -956,14 +883,18 @@ def plot_lemur(call_df, examples, native_sr, output_path):
 # MAIN
 # ---------------------------------------------------------------------------
 def main():
+    global CODEC, BITRATE
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', required=True,
                         choices=['birdnet', 'anuraset', 'lemur', 'northeastern'])
     parser.add_argument('--output', default=None)
+    parser.add_argument('--codec', default=CODEC)
+    parser.add_argument('--bitrate', type=float, default=BITRATE)
     args = parser.parse_args()
+    CODEC, BITRATE = args.codec, args.bitrate
 
     output = Path(args.output) if args.output else \
-             FIGS_DIR / f'violin_with_spectrograms_{args.dataset}.png'
+             FIGS_DIR / f'violin_with_spectrograms_{args.dataset}_{BITRATE:g}kbps.png'
 
     if args.dataset == 'birdnet':
         call_df, ann_or_meta, native_sr = load_call_df_birdnet()
