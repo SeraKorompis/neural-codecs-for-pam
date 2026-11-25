@@ -29,6 +29,13 @@ MP3_KEEP  = [8.0, 16.0, 24.0]
 OPUS_KEEP = [8.0, 14.0, 24.0]
 
 DATASET_CONFIG = {
+    'northeastern': {
+        'path'    : RESULTS_BASE / 'northeastern' / 'macro_metrics_ovr.csv',
+        'roc_col' : 'macro_roc_auc',
+        'prec_col': 'precision_fixed_f1',
+        'rec_col' : 'recall_fixed_f1',
+        'label'   : 'Northeastern US soundscapes',
+    },
     'anuraset': {
         'path'    : RESULTS_BASE / 'anuraset' / 'macro_metrics.csv',
         'roc_col' : 'macro_roc_auc',
@@ -42,13 +49,6 @@ DATASET_CONFIG = {
         'prec_col': 'precision_fixed_f1',
         'rec_col' : 'recall_fixed_f1',
         'label'   : 'Black-and-white ruffed lemur',
-    },
-    'northeastern': {
-        'path'    : RESULTS_BASE / 'northeastern' / 'macro_metrics_ovr.csv',
-        'roc_col' : 'macro_roc_auc',
-        'prec_col': 'precision_fixed_f1',
-        'rec_col' : 'recall_fixed_f1',
-        'label'   : 'Northeastern US soundscapes',
     },
 }
 
