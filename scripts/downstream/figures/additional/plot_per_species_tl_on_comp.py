@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/downstream/figures/plot_per_species_tl_on_comp.py
+scripts/downstream/figures/additional/plot_per_species_tl_on_comp.py
 Combined figure:
   (a) Left:  Box plot of per-species Δ ROC-AUC across all EnCodec bitrates
              (domain-matched minus trained-on-original), sorted by median
@@ -24,7 +24,7 @@ import matplotlib.patches as mpatches
 from matplotlib.lines import Line2D
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(PROJECT_ROOT))
 from src.config import PATHS
 
