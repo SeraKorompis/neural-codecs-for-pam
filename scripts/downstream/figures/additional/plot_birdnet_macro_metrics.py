@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/downstream/figures/plot_birdnet_macro_metrics.py
+scripts/downstream/figures/additional/plot_birdnet_macro_metrics.py
 BirdNET pre-trained species detection performance.
 1 row x 3 columns: ROC-AUC, Precision, Recall
 Uses binary evaluation results.
@@ -12,7 +12,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 sys.path.append(str(PROJECT_ROOT))
 from src.config import PATHS
 
