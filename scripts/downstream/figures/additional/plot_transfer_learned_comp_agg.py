@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """
-scripts/downstream/figures/plot_roc_auc_transfer_learned_compressed_agg.py
-ROC-AUC vs bitrate comparing two training strategies across datasets.
+scripts/downstream/figures/additional/plot_roc_auc_transfer_learned_comp_agg.py
+
+Macro ROC-AUC against bitrate for
+two training strategies, one panel per dataset (AnuraSet, Lemur, Northeastern).
+
+  Solid lines:  transfer-learned classifier trained on original audio and
+                tested on compressed audio.
+  Dashed lines: transfer-learned classifier trained and tested on the same
+                compressed audio.
+  Dashed black: original (uncompressed) audio baseline.
+
 """
 import sys
 import pandas as pd
