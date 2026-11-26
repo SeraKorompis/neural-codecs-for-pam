@@ -34,7 +34,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 import matplotlib.ticker as ticker
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 sys.path.append(str(PROJECT_ROOT))
 from src.config import PATHS
 
