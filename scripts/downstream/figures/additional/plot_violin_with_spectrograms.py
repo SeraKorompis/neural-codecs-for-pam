@@ -836,7 +836,7 @@ def plot_lemur(call_df, examples, native_sr, output_path):
     ax_violin.set_xlim(-1.05, 1.05)
     ax_violin.tick_params(axis='x', labelsize=FS_SMALL)
     ax_violin.grid(True, axis='x', alpha=0.3)
-    ax_violin.text(-0.02, 1.05, '(a) Per-species confidence change distribution',
+    ax_violin.text(-0.02, 1.05, '(a) Confidence change distribution',
                    transform=ax_violin.transAxes,
                    fontsize=25, va='bottom', ha='left')
 
@@ -855,6 +855,10 @@ def plot_lemur(call_df, examples, native_sr, output_path):
             height_ratios=[0.09, 1.0, 0.09, 1.0],
             hspace=0.48, wspace=0.12)
 
+        pos = group_sub_gs[0, :].get_position(fig)
+        fig.text(pos.x0, pos.y1 + 0.03, PANEL_TAGS[group_idx],
+                 fontsize=22, ha='left', va='bottom')
+
         for row_in_group in range(2):
             row_idx        = GROUP_ROWS[group_idx][row_in_group]
             ex_row         = examples.iloc[row_idx]
@@ -872,7 +876,6 @@ def plot_lemur(call_df, examples, native_sr, output_path):
                 get_annotation_fn=get_annotation_info_lemur,
                 ann_or_meta=None,
                 native_sr=native_sr,
-                panel_tag=PANEL_TAGS[group_idx] if row_in_group == 0 else None,
                 is_last_row=(row_in_group == 1))
 
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
