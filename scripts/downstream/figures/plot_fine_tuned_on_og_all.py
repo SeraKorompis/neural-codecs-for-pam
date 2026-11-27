@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-scripts/downstream/figures/plot_transfer_learned_aggregated.py
+scripts/downstream/figures/plot_fine_tuned_on_og_all.py
+
+Plot all metrics (ROC-AUC, precision, recall) for fine-tuned classifiers
+trained on original raw data, one panel per dataset. Each panel shows the metric against
+
 """
 import sys
 import numpy as np
@@ -217,7 +221,7 @@ def main():
             fontsize=LEGEND_SIZE, frameon=False, loc='best')
 
     plt.tight_layout()
-    out = FIGS_DIR / 'transfer_learned_aggregated.png'
+    out = FIGS_DIR / 'fine_tuned_on_og_all.png'
     plt.savefig(out, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"Saved: {out}")

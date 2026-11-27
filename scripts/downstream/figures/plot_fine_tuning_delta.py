@@ -2,8 +2,9 @@
 """
 scripts/downstream/figures/plot_fine_tuning_delta.py
 
-Bar chart showing AUC improvement from transfer learning
-on compressed data vs trained on original, per codec/bitrate.
+Bar chart showing AUC improvement from fine-tuning
+on compressed data, compared to training on original raw data, per codec/bitrate.
+(AUC improvement = AUC of classifier fine-tuned on compressed data - AUC of classifier fine-tuned on original raw data)
 For codecs with more than 2 bitrates, only lowest and highest are shown.
 Layout: 1 row x N columns (one per dataset).
 """

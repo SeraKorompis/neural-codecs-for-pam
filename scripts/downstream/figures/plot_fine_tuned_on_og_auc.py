@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-scripts/downstream/figures/plot_fine_tuned_on_og.py
-Transfer-learned classifier macro ROC-AUC against bitrate, one panel per
+scripts/downstream/figures/plot_fine_tuned_on_og_auc.py
+Fine-tuned classifier macro ROC-AUC against bitrate, one panel per
 dataset: (a) AnuraSet, (b) black-and-white ruffed lemur,
 (c) Northeastern US soundscapes.
 """
@@ -169,7 +169,7 @@ def main():
                         fontsize=LEGEND_SIZE, frameon=False, loc='best')
 
     plt.tight_layout()
-    out = FIGS_DIR / 'fine_tuned_on_original'
+    out = FIGS_DIR / 'fine_tuned_on_og_auc'
     plt.savefig(f'{out}.png', dpi=300, bbox_inches='tight')
     plt.savefig(f'{out}.pdf', bbox_inches='tight')
     plt.close()
